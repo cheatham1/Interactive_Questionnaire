@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NHS CHC Decision Support Tool — Questionnaire</title>
+<style>
+  :root{
+    --text-primary:#1f1f1c; --text-secondary:#5f5e5a; --text-accent:#185fa5;
+    --surface-0:#faf9f5; --surface-1:#f1efe8; --surface-2:#ffffff;
+    --border:#dcdad2; --border-strong:#c2c0b6; --bg-accent:#e6f1fb; --border-accent:#185fa5;
+    --bg-warning:#faeeda; --border-warning:#854f0b; --text-warning:#633806;
+    --radius:8px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--surface-0); color:var(--text-primary);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:820px; margin:0 auto; padding:24px 20px 60px;}
+  h1{font-size:22px; font-weight:600; margin:0 0 4px;}
+  .sub{font-size:14px; color:var(--text-secondary); margin:0 0 24px;}
+  button{
+    font-family:inherit; font-size:14px; background:var(--surface-2); color:var(--text-primary);
+    border:1px solid var(--border-strong); border-radius:var(--radius); padding:9px 16px;
+    cursor:pointer; transition:background .15s ease, transform .05s ease;
+  }
+  button:hover:not(:disabled){background:var(--surface-1);}
+  button:active:not(:disabled){transform:scale(.98);}
+  button:disabled{opacity:.45; cursor:not-allowed;}
+  #btn-next{
+    font-size:16px; font-weight:600; padding:12px 28px;
+    background:#c0392b; color:#fff; border:1px solid #a5281b;
+  }
+  #btn-next:hover:not(:disabled){background:#a5281b;}
+  #btn-next:disabled{background:var(--surface-1); color:var(--text-secondary); border:1px solid var(--border); opacity:1;}
+  input,textarea{
+    font-family:inherit; font-size:14px; color:var(--text-primary);
+    background:var(--surface-2); border:1px solid var(--border); border-radius:var(--radius);
+    padding:9px 11px; width:100%;
+  }
+  input:focus,textarea:focus{outline:none; border-color:var(--border-accent); box-shadow:0 0 0 3px var(--bg-accent);}
+  .progress-track{height:6px; background:var(--surface-1); border-radius:999px; overflow:hidden;}
+  .progress-bar{height:100%; width:0%; background:var(--text-accent); border-radius:999px; transition:width .3s ease;}
+  .card{background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:20px 20px 16px;}
+  .opt{
+    text-align:left; display:block; width:100%; background:var(--surface-1);
+    border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:8px; cursor:pointer;
+    line-height:1.5;
+  }
+  .opt:hover{background:#fff;}
+  .pill{font-size:11px; font-weight:600; letter-spacing:.03em; text-transform:uppercase; padding:1px 8px; border-radius:999px; border:1px solid;}
+  .nav{display:flex; justify-content:space-between; gap:12px; margin-top:20px;}
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{border-bottom:1px solid var(--border);}
+  .hint{font-size:13px; color:var(--text-secondary);}
+  .warnbox{background:var(--bg-warning); border:1px solid var(--border-warning); border-radius:8px; padding:10px 12px; margin-bottom:16px; font-size:13px; color:var(--text-warning);}
+  @media print{
+    body{background:#fff;}
+    .no-print{display:none !important;}
+    .print-only{display:block !important;}
+  }
+  .print-only{display:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>NHS Continuing Healthcare — Decision Support Tool</h1>
+  <p class="sub" style="color:#c0392b; font-size:17px; font-weight:600;">Interactive questionnaire. Select the one statement that best fits each domain.</p>
+
+  <div id="details-top" class="no-print"></div>
+
+  <div id="progress-wrap" class="no-print" style="margin-bottom:24px;">
+    <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px;">
+      <span id="progress-label" style="font-size:14px; font-weight:600;">Domain 1 of 12</span>
+      <span id="progress-count" class="hint">0 answered</span>
+    </div>
+    <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+  </div>
+
+  <div id="card-area" class="no-print"></div>
+
+  <div id="nav-area" class="nav no-print">
+    <button id="btn-prev" onclick="goPrev()">&larr; Previous</button>
+    <button id="btn-summary" onclick="backToSummary()" style="display:none;">Return to summary</button>
+    <button id="btn-next" onclick="goNext()">Next &rarr;</button>
+  </div>
+
+  <div id="results-area" class="no-print" style="display:none;"></div>
+  <div id="print-area" class="print-only"></div>
+</div>
+
+<script>
+const DOMAINS = [
+  { name: "Breathing", levels: [
+      { level:"N", label:"No needs", text:"Normal breathing, no issues with shortness of breath." },
+      { level:"L", label:"Low", text:"Shortness of breath or a condition which may require the use of inhalers or a nebuliser and has no impact on daily living activities. OR Episodes of breathlessness that readily respond to management and have no impact on daily living activities." },
+      { level:"M", label:"Moderate", text:"Shortness of breath or a condition which may require inhalers or a nebuliser and limit some daily living activities. OR Episodes of breathlessness that do not consistently respond to management and limit some daily living activities. OR Requires any of: low level oxygen therapy (24%); room air ventilators via a facial or nasal mask; other therapeutic appliances to maintain airflow where individual can still spontaneously breathe e.g. CPAP to manage obstructive apnoea during sleep." },
+      { level:"H", label:"High", text:"Is able to breathe independently through a tracheotomy that they can manage themselves, or with the support of carers or care workers. OR Breathlessness due to a condition which is not responding to treatment and limits all daily living activities." },
+      { level:"S", label:"Severe", text:"Difficulty in breathing, even through a tracheotomy, which requires suction to maintain airway. OR Demonstrates severe breathing difficulties at rest, in spite of maximum medical therapy. OR A condition that requires management by a non-invasive device to both stimulate and maintain breathing (bi-level positive airway pressure, or non-invasive ventilation)." },
+      { level:"P", label:"Priority", text:"Unable to breathe independently, requires invasive mechanical ventilation." }
+  ]},
+  { name: "Nutrition \u2013 Food and Drink", levels: [
+      { level:"N", label:"No needs", text:"Able to take adequate food and drink by mouth to meet all nutritional requirements." },
+      { level:"L", label:"Low", text:"Needs supervision, prompting with meals, or may need feeding and/or a special diet (for example to manage food intolerances/allergies). OR Able to take food and drink by mouth but requires additional/supplementary feeding." },
+      { level:"M", label:"Moderate", text:"Needs feeding to ensure adequate intake of food and takes a long time (half an hour or more), including liquidised feed. OR Unable to take any food and drink by mouth, but all nutritional requirements are being adequately maintained by artificial means, for example via a non-problematic PEG." },
+      { level:"H", label:"High", text:"Dysphagia requiring skilled intervention to ensure adequate nutrition/hydration and minimise the risk of choking and aspiration to maintain airway. OR Subcutaneous fluids managed by the individual or specifically trained carers. OR Nutritional status \u201cat risk\u201d and may be associated with unintended, significant weight loss. OR Significant weight loss or gain due to identified eating disorder. OR Problems relating to a feeding device (for example PEG) that require skilled assessment and review." },
+      { level:"S", label:"Severe", text:"Unable to take food and drink by mouth. All nutritional requirements taken by artificial means requiring on-going skilled professional intervention or monitoring over a 24 hour period to ensure nutrition/hydration, for example I.V. fluids/total parenteral nutrition (TPN). OR Unable to take food and drink by mouth, intervention inappropriate or impossible." }
+  ]},
+  { name: "Continence", levels: [
+      { level:"N", label:"No needs", text:"Continent of urine and faeces." },
+      { level:"L", label:"Low", text:"Continence care is routine on a day-to-day basis; incontinence of urine managed through, for example, medication, regular toileting, use of penile sheaths, etc. AND is able to maintain full control over bowel movements or has a stable stoma, or may have occasional faecal incontinence/constipation." },
+      { level:"M", label:"Moderate", text:"Continence care is routine but requires monitoring to minimise risks, for example those associated with urinary catheters, double incontinence, chronic urinary tract infections and/or the management of constipation or other bowel problems." },
+      { level:"H", label:"High", text:"Continence care is problematic and requires timely and skilled intervention, beyond routine care (for example frequent bladder wash outs/irrigation, manual evacuations, frequent re-catheterisation)." }
+  ]},
+  { name: "Skin (including tissue viability)", levels: [
+      { level:"N", label:"No needs", text:"No risk of pressure damage or skin condition." },
+      { level:"L", label:"Low", text:"Risk of skin breakdown which requires preventative intervention once a day or less than daily without which skin integrity would break down. OR Evidence of pressure damage and/or pressure ulcer(s) either with \u2018discolouration of intact skin\u2019 or a minor wound(s). OR A skin condition that requires monitoring or reassessment less than daily and that is responding to treatment or does not currently require treatment." },
+      { level:"M", label:"Moderate", text:"Risk of skin breakdown which requires preventative intervention several times each day without which skin integrity would break down. OR Pressure damage or open wound(s), pressure ulcer(s) with \u2018partial thickness skin loss involving epidermis and/or dermis\u2019, which is responding to treatment. OR An identified skin condition that requires a minimum of daily treatment, or daily monitoring/reassessment to ensure that it is responding to treatment." },
+      { level:"H", label:"High", text:"Pressure damage or open wound(s), pressure ulcer(s) with \u2018partial thickness skin loss involving epidermis and/or dermis\u2019, which is not responding to treatment. OR Pressure damage or open wound(s), pressure ulcer(s) with \u2018full thickness skin loss involving damage or necrosis to subcutaneous tissue, but not extending to underlying bone, tendon or joint capsule\u2019, which is/are responding to treatment. OR Specialist dressing regime in place; responding to treatment." },
+      { level:"S", label:"Severe", text:"Open wound(s), pressure ulcer(s) with \u2018full thickness skin loss involving damage or necrosis to subcutaneous tissue, but not extending to underlying bone, tendon or joint capsule\u2019 which are not responding to treatment and require regular monitoring/reassessment. OR Open wound(s), pressure ulcer(s) with \u2018full thickness skin loss with extensive destruction and tissue necrosis extending to underlying bone, tendon or joint capsule\u2019 or above. OR Multiple wounds which are not responding to treatment." }
+  ]},
+  { name: "Mobility", levels: [
+      { level:"N", label:"No needs", text:"Independently mobile." },
+      { level:"L", label:"Low", text:"Able to weight bear but needs some assistance and/or requires mobility equipment for daily living." },
+      { level:"M", label:"Moderate", text:"Not able to consistently weight bear. OR Completely unable to weight bear but is able to assist or cooperate with transfers and/or repositioning. OR In one position (bed or chair) for the majority of time but is able to cooperate and assist carers or care workers. OR At moderate risk of falls (as evidenced in a falls history or risk assessment)." },
+      { level:"H", label:"High", text:"Completely unable to weight bear and is unable to assist or cooperate with transfers and/or repositioning. OR Due to risk of physical harm or loss of muscle tone or pain on movement needs careful positioning and is unable to cooperate. OR At a high risk of falls (as evidenced in a falls history and risk assessment). OR Involuntary spasms or contractures placing the individual or others at risk." },
+      { level:"S", label:"Severe", text:"Completely immobile and/or clinical condition such that, in either case, on movement or transfer there is a high risk of serious physical harm and where the positioning is critical." }
+  ]},
+  { name: "Communication", levels: [
+      { level:"N", label:"No needs", text:"Able to communicate clearly, verbally or non-verbally. Has a good understanding of their primary language. May require translation if English is not their first language." },
+      { level:"L", label:"Low", text:"Needs assistance to communicate their needs. Special effort may be needed to ensure accurate interpretation of needs or additional support may be needed either visually, through touch or with hearing." },
+      { level:"M", label:"Moderate", text:"Communication about needs is difficult to understand or interpret or the individual is sometimes unable to reliably communicate, even when assisted. Carers or care workers may be able to anticipate needs through non-verbal signs due to familiarity with the individual." },
+      { level:"H", label:"High", text:"Unable to reliably communicate their needs at any time and in any way, even when all practicable steps to assist them have been taken. The individual has to have most of their needs anticipated because of their inability to communicate them." }
+  ]},
+  { name: "Psychological and Emotional Needs", levels: [
+      { level:"N", label:"No needs", text:"Psychological and emotional needs are not having an impact on their health and well-being." },
+      { level:"L", label:"Low", text:"Mood disturbance, hallucinations or anxiety symptoms, or periods of distress, which are having an impact on their health and/or well-being but respond to prompts, distraction and/or reassurance. OR Requires prompts to motivate self towards activity and to engage them in care planning, support, and/or daily activities." },
+      { level:"M", label:"Moderate", text:"Mood disturbance, hallucinations or anxiety symptoms, or periods of distress, which do not readily respond to prompts, distraction and/or reassurance and have an increasing impact on the individual\u2019s health and/or well-being. OR Due to their psychological or emotional state the individual has withdrawn from most attempts to engage them in care planning, support and/or daily activities." },
+      { level:"H", label:"High", text:"Mood disturbance, hallucinations or anxiety symptoms, or periods of distress, that have a severe impact on the individual\u2019s health and/or well-being. OR Due to their psychological or emotional state the individual has withdrawn from any attempts to engage them in care planning, support and/or daily activities." }
+  ]},
+  { name: "Cognition", levels: [
+      { level:"N", label:"No needs", text:"No evidence of impairment, confusion or disorientation." },
+      { level:"L", label:"Low", text:"Cognitive impairment which requires some supervision, prompting or assistance with more complex activities of daily living, such as finance and medication, but awareness of basic risks that affect their safety is evident. OR Occasional difficulty with memory and decisions/choices requiring support, prompting or assistance. However, the individual has insight into their impairment." },
+      { level:"M", label:"Moderate", text:"Cognitive impairment (which may include some memory issues) that requires some supervision, prompting and/or assistance with basic care needs and daily living activities. Some awareness of needs and basic risks is evident. The individual is usually able to make choices appropriate to needs with assistance. However, the individual has limited ability even with supervision, prompting or assistance to make decisions about some aspects of their lives, which consequently puts them at some risk of harm, neglect or health deterioration." },
+      { level:"H", label:"High", text:"Cognitive impairment that could, for example, include frequent short-term memory issues and maybe disorientation to time and place. The individual has awareness of only a limited range of needs and basic risks. Although they may be able to make some choices appropriate to need on a limited range of issues they are unable to consistently do so on most issues, even with supervision, prompting or assistance. The individual finds it difficult even with supervision, prompting or assistance to make decisions about key aspects of their lives, which consequently puts them at high risk of harm, neglect or health deterioration." },
+      { level:"S", label:"Severe", text:"Cognitive impairment that may, for example, include marked short or long-term memory issues, or severe disorientation to time, place or person. The individual is unable to assess basic risks even with supervision, prompting or assistance, and is dependent on others to anticipate their basic needs and to protect them from harm, neglect or health deterioration." }
+  ]},
+  { name: "Behaviour", levels: [
+      { level:"N", label:"No needs", text:"No evidence of \u2018challenging\u2019 behaviour." },
+      { level:"L", label:"Low", text:"Some incidents of \u2018challenging\u2019 behaviour. A risk assessment indicates that the behaviour does not pose a risk to self, others or property or create a barrier to intervention. The individual is compliant with all aspects of their care." },
+      { level:"M", label:"Moderate", text:"\u2018Challenging\u2019 behaviour that follows a predictable pattern. The risk assessment indicates a pattern of behaviour that can be managed by skilled carers or care workers who are able to maintain a level of behaviour that does not pose a risk to self, others or property. The individual is nearly always compliant with care." },
+      { level:"H", label:"High", text:"\u2019Challenging\u2019 behaviour of type and/or frequency that poses a predictable risk to self, others or property. The risk assessment indicates that planned interventions are effective in minimising but not always eliminating risks. Compliance is variable but usually responsive to planned interventions." },
+      { level:"S", label:"Severe", text:"\u2018Challenging\u2019 behaviour of severity and/or frequency that poses a significant risk to self, others or property. The risk assessment identifies that the behaviour(s) require(s) a prompt and skilled response that might be outside the range of planned interventions." },
+      { level:"P", label:"Priority", text:"\u2018Challenging\u2019 behaviour of a severity and/or frequency and/or unpredictability that presents an immediate and serious risk to self, others or property. The risks are so serious that they require access to an immediate and skilled response at all times for safe care." }
+  ]},
+  { name: "Drug Therapies and Medication: Symptom Control", levels: [
+      { level:"N", label:"No needs", text:"Symptoms are managed effectively and without any problems, and medication is not resulting in any unmanageable side-effects." },
+      { level:"L", label:"Low", text:"Requires supervision/administration of and/or prompting with medication but shows compliance with medication regime. OR Mild pain that is predictable and/or is associated with certain activities of daily living. Pain and other symptoms do not have an impact on the provision of care." },
+      { level:"M", label:"Moderate", text:"Requires the administration of medication (by a registered nurse, carer or care worker) due to: non-compliance, or type of medication (for example insulin), or route of medication (for example PEG). OR Moderate pain which follows a predictable pattern; or other symptoms which are having a moderate effect on other domains or on the provision of care." },
+      { level:"H", label:"High", text:"Requires administration and monitoring of medication regime by a registered nurse, carer or care worker specifically trained for the task because there are risks associated with the potential fluctuation of the medical condition or mental state, or risks regarding the effectiveness of the medication or the potential nature or severity of side-effects. However, with such monitoring the condition is usually non-problematic to manage. OR Moderate pain or other symptoms which is/are having a significant effect on other domains or on the provision of care." },
+      { level:"S", label:"Severe", text:"Requires administration and monitoring of medication regime by a registered nurse, carer or care worker specifically trained for this task because there are risks associated with the potential fluctuation of the medical condition or mental state, or risks regarding the effectiveness of the medication or the potential nature or severity of side-effects. Even with such monitoring the condition is usually problematic to manage. OR Severe recurrent or constant pain which is not responding to treatment. OR Non-compliance with medication, placing them at severe risk of relapse." },
+      { level:"P", label:"Priority", text:"Has a drug regime that requires daily monitoring by a registered nurse to ensure effective symptom and pain management associated with a rapidly changing and/or deteriorating condition. OR Unremitting and overwhelming pain despite all efforts to control pain effectively." }
+  ]},
+  { name: "Altered States of Consciousness (ASC)", levels: [
+      { level:"N", label:"No needs", text:"No evidence of altered states of consciousness (ASC)." },
+      { level:"L", label:"Low", text:"History of ASC but it is effectively managed and there is a low risk of harm." },
+      { level:"M", label:"Moderate", text:"Occasional (monthly or less frequently) episodes of ASC that require the supervision of a carer or care worker to minimise the risk of harm." },
+      { level:"H", label:"High", text:"Frequent episodes of ASC that require the supervision of a carer or care worker to minimise the risk of harm. OR Occasional ASCs that require skilled intervention to reduce the risk of harm." },
+      { level:"P", label:"Priority", text:"Coma. OR ASC that occur on most days, do not respond to preventative treatment, and result in a severe risk of harm." }
+  ]},
+  { name: "Other significant care needs", levels: [
+      { level:"N", label:"No needs", text:"No other significant care needs identified." },
+      { level:"L", label:"Low", text:"Other significant care needs assessed as Low \u2013 record the extent and type of the needs in the notes." },
+      { level:"M", label:"Moderate", text:"Other significant care needs assessed as Moderate \u2013 record the extent and type of the needs in the notes." },
+      { level:"H", label:"High", text:"Other significant care needs assessed as High \u2013 record the extent and type of the needs in the notes." },
+      { level:"S", label:"Severe", text:"Other significant care needs assessed as Severe \u2013 record the extent and type of the needs in the notes." }
+  ]}
+];
+
+const LEVEL_ORDER = ["P","S","H","M","L","N"];
+const LEVEL_FULL = { P:"Priority", S:"Severe", H:"High", M:"Moderate", L:"Low", N:"No needs" };
+const LEVEL_COLOR = {
+  P:{bg:"#FCEBEB",bd:"#A32D2D",tx:"#501313"},
+  S:{bg:"#FAECE7",bd:"#993C1D",tx:"#4A1B0C"},
+  H:{bg:"#FAEEDA",bd:"#854F0B",tx:"#412402"},
+  M:{bg:"#E6F1FB",bd:"#185FA5",tx:"#042C53"},
+  L:{bg:"#E1F5EE",bd:"#0F6E56",tx:"#04342C"},
+  N:{bg:"#F1EFE8",bd:"#5F5E5A",tx:"#2C2C2A"}
+};
+
+let current = 0;
+let reviewMode = false;
+const answers = new Array(DOMAINS.length).fill(null);
+const notes = new Array(DOMAINS.length).fill("");
+let personName = "";
+let assessDate = "";
+
+function esc(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function escA(s){ return (s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function fmtDesc(s){
+  return esc(s).replace(/ OR /g, '<br><span style="font-weight:600; color:#c0392b;">OR</span><br>');
+}
+
+function renderCard(){
+  const d = DOMAINS[current];
+  let html = "";
+  html += '<div class="card">';
+  html += '<span class="pill" style="color:var(--text-accent); background:var(--bg-accent); border-color:var(--bg-accent);">Domain '+(current+1)+'</span>';
+  html += '<h2 style="font-size:18px; font-weight:600; margin:8px 0 4px;">'+d.name+'</h2>';
+  html += '<p class="hint" style="margin:0 0 16px;">Please choose the statement that best describes the person right now.</p>';
+  d.levels.forEach((lv,i)=>{
+    const sel = answers[current]===i;
+    const c = LEVEL_COLOR[lv.level];
+    const border = sel ? ('2px solid '+c.bd) : '1px solid var(--border)';
+    const bg = sel ? c.bg : 'var(--surface-1)';
+    html += '<button class="opt" onclick="selectLevel('+i+')" style="border:'+border+'; background:'+bg+';">';
+    html += '<div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">';
+    html += '<span class="pill" style="color:'+c.tx+'; background:'+c.bg+'; border-color:'+c.bd+';">'+lv.label+'</span>';
+    if(sel) html += '<span style="color:'+c.bd+'; font-weight:700;">&#10003;</span>';
+    html += '</div>';
+    html += '<span style="font-size:13.5px;">'+fmtDesc(lv.text)+'</span>';
+    html += '</button>';
+  });
+  html += '<div style="margin-top:16px;">';
+  html += '<label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:6px;">Notes / evidence for this domain (optional)</label>';
+  html += '<textarea oninput="notes[current]=this.value" placeholder="Record supporting evidence, examples, assessments referenced, or reasoning for the level chosen." style="min-height:80px; resize:vertical;">'+esc(notes[current])+'</textarea>';
+  html += '</div></div>';
+  document.getElementById("card-area").innerHTML = html;
+  updateProgress(); updateNav();
+}
+
+function renderDetailsTop(){
+  let html = '<div style="background:var(--surface-1); border-radius:12px; padding:12px 14px; margin-bottom:16px; display:flex; gap:12px; flex-wrap:wrap;">';
+  html += '<div style="flex:1; min-width:180px;"><label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:4px;">Person\'s name (optional)</label><input type="text" value="'+escA(personName)+'" oninput="personName=this.value" placeholder="Full name"></div>';
+  html += '<div style="flex:1; min-width:150px;"><label style="font-size:12px; color:var(--text-secondary); display:block; margin-bottom:4px;">Assessment date (optional)</label><input type="text" value="'+escA(assessDate)+'" oninput="assessDate=this.value" placeholder="e.g. 4 July 2026"></div>';
+  html += '</div>';
+  document.getElementById("details-top").innerHTML = html;
+}
+
+function selectLevel(i){ answers[current]=i; renderCard(); }
+
+function updateProgress(){
+  const answered = answers.filter(a=>a!==null).length;
+  document.getElementById("progress-label").textContent = "Domain "+(current+1)+" of "+DOMAINS.length;
+  document.getElementById("progress-count").textContent = answered+" of "+DOMAINS.length+" answered";
+  document.getElementById("progress-bar").style.width = (answered/DOMAINS.length*100)+"%";
+}
+
+function updateNav(){
+  document.getElementById("btn-prev").style.visibility = current===0 ? "hidden" : "visible";
+  document.getElementById("btn-summary").style.display = reviewMode ? "inline-block" : "none";
+  const nextBtn = document.getElementById("btn-next");
+  const answered = answers[current]!==null;
+  nextBtn.disabled = !answered;
+  nextBtn.title = answered ? "" : "Select a level to continue";
+  nextBtn.innerHTML = current===DOMAINS.length-1 ? "See results &rarr;" : "Next &rarr;";
+}
+
+function goPrev(){ if(current>0){current--; renderCard();} }
+function goNext(){
+  if(answers[current]===null) return;
+  if(current<DOMAINS.length-1){ current++; renderCard(); } else { showResults(); }
+}
+
+function conclusionText(counts){
+  const who = personName.trim() ? esc(personName.trim()) : "The person";
+  let band, msg;
+  if(counts.P >= 1 || counts.S >= 2){
+    band = "strong";
+    msg = who + "'s needs include a level that may point towards eligibility for NHS Continuing Healthcare funding (one Priority, or two or more Severe domains). This is only an indication \u2014 eligibility is decided by a multidisciplinary team assessing the overall picture. Please seek professional advice to confirm.";
+  } else if(counts.S === 1 || counts.H >= 1){
+    band = "middle";
+    msg = who + "'s needs sit in a range where eligibility for NHS Continuing Healthcare funding is not clear-cut and would depend on the multidisciplinary team's judgement of the overall picture. Please seek professional advice to confirm.";
+  } else {
+    band = "unlikely";
+    msg = who + "'s needs are unlikely to result in an award of NHS Continuing Healthcare funding. This is only an indication \u2014 eligibility is decided by a multidisciplinary team assessing the overall picture. Please seek professional advice to confirm.";
+  }
+  return {band, msg};
+}
+
+function conclusionColors(band){
+  if(band==="strong") return {bg:"#E1F5EE", bd:"#0F6E56", tx:"#04342C"};
+  if(band==="middle") return {bg:"#FAEEDA", bd:"#854F0B", tx:"#412402"};
+  return {bg:"#F1EFE8", bd:"#5F5E5A", tx:"#2C2C2A"};
+}
+
+function matrixHTML(forPrint){
+  const counts={P:0,S:0,H:0,M:0,L:0,N:0};
+  answers.forEach((a,i)=>{ if(a!==null) counts[DOMAINS[i].levels[a].level]++; });
+  let html='<div style="overflow-x:auto;"><table><thead><tr>';
+  html+='<th style="text-align:left; padding:8px 6px; font-weight:600; color:var(--text-secondary);">Care domain</th>';
+  ["P","S","H","M","L","N"].forEach(l=>{ html+='<th style="width:40px; text-align:center; padding:8px 2px; font-weight:600; color:var(--text-secondary);" title="'+LEVEL_FULL[l]+'">'+l+'</th>'; });
+  html+='</tr></thead><tbody>';
+  DOMAINS.forEach((d,i)=>{
+    const avail=d.levels.map(lv=>lv.level);
+    const chosen=answers[i]!==null?d.levels[answers[i]].level:null;
+    html+='<tr><td style="padding:9px 6px;">'+d.name+'</td>';
+    ["P","S","H","M","L","N"].forEach(l=>{
+      const isAvail=avail.includes(l), isChosen=chosen===l;
+      if(!isAvail){
+        html+='<td style="text-align:center; padding:4px 2px;"><div style="width:24px; height:24px; margin:0 auto; background:#1a1a1a; border-radius:4px;"></div></td>';
+      } else if(isChosen){
+        const c=LEVEL_COLOR[l];
+        html+='<td style="text-align:center; padding:4px 2px;"><div style="width:24px; height:24px; margin:0 auto; background:'+c.bg+'; border:2px solid '+c.bd+'; border-radius:4px; display:flex; align-items:center; justify-content:center; color:'+c.tx+'; font-weight:700; font-size:14px;">&#10003;</div></td>';
+      } else {
+        html+='<td style="text-align:center; padding:4px 2px;"><div style="width:24px; height:24px; margin:0 auto; background:#fff; border:1px solid #c8c8c8; border-radius:4px;"></div></td>';
+      }
+    });
+    html+='</tr>';
+  });
+  html+='<tr style="border-top:2px solid var(--border-strong);"><td style="padding:10px 6px; font-weight:600;">Totals</td>';
+  ["P","S","H","M","L","N"].forEach(l=>{ html+='<td style="text-align:center; padding:10px 2px; font-weight:600;">'+counts[l]+'</td>'; });
+  html+='</tr></tbody></table></div>';
+  return {html, counts};
+}
+
+function showResults(){
+  reviewMode = false;
+  document.getElementById("card-area").style.display="none";
+  document.getElementById("nav-area").style.display="none";
+  document.getElementById("progress-wrap").style.display="none";
+  document.getElementById("details-top").style.display="none";
+  const ra=document.getElementById("results-area");
+  ra.style.display="block";
+  const m = matrixHTML(false);
+  let html='<div class="card">';
+  html+='<h2 style="font-size:18px; font-weight:600; margin:0 0 4px;">Assessed levels of need</h2>';
+  if(personName.trim() || assessDate.trim()){
+    html+='<div style="font-size:14px; color:var(--text-primary); margin:0 0 4px;">';
+    if(personName.trim()) html+='<strong style="font-weight:600;">'+esc(personName.trim())+'</strong>';
+    if(personName.trim() && assessDate.trim()) html+=' &nbsp;&middot;&nbsp; ';
+    if(assessDate.trim()) html+='Assessment date: '+esc(assessDate.trim());
+    html+='</div>';
+  }
+  html+='<p class="hint" style="margin:0 0 16px;">White cells are available levels for that domain; black cells do not apply. The tick marks the assessed level.</p>';
+  html+=m.html;
+  html+='<div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border); display:flex; flex-wrap:wrap; gap:8px;">';
+  LEVEL_ORDER.forEach(l=>{ const c=LEVEL_COLOR[l]; html+='<span class="pill" style="color:'+c.tx+'; background:'+c.bg+'; border-color:'+c.bd+'; text-transform:none; letter-spacing:0;">'+l+' = '+LEVEL_FULL[l]+': '+m.counts[l]+'</span>'; });
+  html+='</div>';
+  const concl = conclusionText(m.counts);
+  const cc = conclusionColors(concl.band);
+  html+='<div style="margin-top:16px; padding:14px 16px; border:1px solid '+cc.bd+'; background:'+cc.bg+'; border-radius:10px; color:'+cc.tx+'; font-size:14px; line-height:1.55;">';
+  html+='<div style="font-weight:600; margin-bottom:4px;">Indicative conclusion</div>'+concl.msg+'</div>';
+  html+='<div style="display:flex; gap:12px; margin-top:18px; flex-wrap:wrap;">';
+  html+='<button onclick="restart()">Start again</button>';
+  html+='<button onclick="reviewFromResults()">Review answers</button>';
+  html+='<button onclick="exportPDF()" style="border:2px solid var(--border-accent); color:var(--text-accent);">Export printable PDF</button>';
+  html+='</div></div>';
+  ra.innerHTML=html;
+}
+
+function restart(){
+  reviewMode = false;
+  for(let i=0;i<answers.length;i++){answers[i]=null; notes[i]="";}
+  personName=""; assessDate=""; current=0;
+  document.getElementById("results-area").style.display="none";
+  document.getElementById("results-area").innerHTML="";
+  document.getElementById("card-area").style.display="block";
+  document.getElementById("nav-area").style.display="flex";
+  document.getElementById("progress-wrap").style.display="block";
+  document.getElementById("details-top").style.display="block";
+  renderDetailsTop();
+  renderCard();
+}
+function reviewFromResults(){
+  reviewMode = true;
+  current=0;
+  document.getElementById("results-area").style.display="none";
+  document.getElementById("results-area").innerHTML="";
+  document.getElementById("card-area").style.display="block";
+  document.getElementById("nav-area").style.display="flex";
+  document.getElementById("progress-wrap").style.display="block";
+  document.getElementById("details-top").style.display="block";
+  renderCard();
+}
+
+function backToSummary(){
+  reviewMode = false;
+  showResults();
+}
+
+function buildPrint(){
+  const m = matrixHTML(true);
+  let html='<div style="max-width:820px;">';
+  html+='<h1 style="font-size:20px; margin:0 0 2px;">NHS Continuing Healthcare — Decision Support Tool</h1>';
+  html+='<p style="font-size:13px; color:#444; margin:0 0 4px;">Completed assessment record</p>';
+  html+='<table style="width:100%; font-size:13px; margin:0 0 18px;"><tbody>';
+  html+='<tr><td style="padding:3px 6px; width:140px; color:#555;">Person</td><td style="padding:3px 6px;">'+esc(personName||"(not given)")+'</td></tr>';
+  html+='<tr><td style="padding:3px 6px; color:#555;">Assessment date</td><td style="padding:3px 6px;">'+esc(assessDate||"(not given)")+'</td></tr>';
+  html+='<tr><td style="padding:3px 6px; color:#555;">Printed</td><td style="padding:3px 6px;">'+new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'})+'</td></tr>';
+  html+='</tbody></table>';
+  html+='<h2 style="font-size:16px; margin:0 0 8px;">Assessed levels of need</h2>';
+  html+=m.html;
+  html+='<div style="margin:10px 0 22px; font-size:12px; color:#444;">Totals — Priority: '+m.counts.P+', Severe: '+m.counts.S+', High: '+m.counts.H+', Moderate: '+m.counts.M+', Low: '+m.counts.L+', No needs: '+m.counts.N+'</div>';
+  const pconcl = conclusionText(m.counts);
+  const pcc = conclusionColors(pconcl.band);
+  html+='<div style="margin:0 0 22px; padding:12px 14px; border:1px solid '+pcc.bd+'; background:'+pcc.bg+'; border-radius:8px; color:'+pcc.tx+'; font-size:12.5px; line-height:1.5;">';
+  html+='<div style="font-weight:700; margin-bottom:3px;">Indicative conclusion</div>'+pconcl.msg+'</div>';
+  html+='<h2 style="font-size:16px; margin:18px 0 8px; page-break-before:always;">Domain responses</h2>';
+  DOMAINS.forEach((d,i)=>{
+    const a=answers[i];
+    const lv = a!==null?d.levels[a]:null;
+    const c = lv?LEVEL_COLOR[lv.level]:null;
+    html+='<div style="margin:0 0 14px; padding:0 0 12px; border-bottom:1px solid #ddd; page-break-inside:avoid;">';
+    html+='<div style="font-weight:600; font-size:14px; margin-bottom:4px;">'+(i+1)+'. '+d.name+'</div>';
+    if(lv){
+      html+='<div style="margin-bottom:4px;"><span style="display:inline-block; font-size:11px; font-weight:700; padding:1px 8px; border-radius:3px; border:1px solid '+c.bd+'; color:'+c.tx+'; background:'+c.bg+';">'+lv.label+' ('+lv.level+')</span></div>';
+      html+='<div style="font-size:12.5px; color:#222; margin-bottom:6px;">'+fmtDesc(lv.text)+'</div>';
+    } else {
+      html+='<div style="font-size:12.5px; color:#a00;">Not answered</div>';
+    }
+    html+='<div style="font-size:12.5px;"><span style="color:#555;">Notes: </span>'+(notes[i].trim()?esc(notes[i].trim()):'<span style="color:#888;">(none)</span>')+'</div>';
+    html+='</div>';
+  });
+  html+='<p style="font-size:11px; color:#777; margin-top:18px;">This record is a data-entry aid based on the July 2022 DST care-domain descriptors. It does not constitute a completed statutory assessment; eligibility for NHS Continuing Healthcare rests on the multidisciplinary team\'s judgement of a primary health need.</p>';
+  html+='</div>';
+  document.getElementById("print-area").innerHTML = html;
+}
+
+function exportPDF(){
+  buildPrint();
+  window.print();
+}
+
+renderDetailsTop();
+renderCard();
+</script>
+</body>
+</html>
